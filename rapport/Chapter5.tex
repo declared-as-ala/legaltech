@@ -1,0 +1,532 @@
+\setcounter{chapter}{5} % Mettre le compteur avant tout
+\setcounter{section}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+
+\thispagestyle{empty}
+
+\begin{center}
+    \vspace*{\fill}
+
+    {\fontsize{40pt}{48pt}\selectfont
+    \textcolor{black}{\textsc{Chapitre 5}}}\\[2em]
+
+    {\fontsize{22pt}{26pt}\selectfont
+    \textbf{Release 3 : Cloud, Conteneurisation et DevOps}}
+
+    \vspace*{\fill}
+\end{center}
+
+\newpage
+
+\addcontentsline{toc}{chapter}
+{Chapitre 5 : Release 3 : Cloud, Conteneurisation \& DevOps}
+
+\fancyhead[LO,LE]
+{\textbf{Chapitre 5 : Release 3 : Cloud, Conteneurisation \& DevOps}}
+
+%====================================================
+\section{Introduction}
+%====================================================
+
+Cette release a pour objectif de moderniser l’infrastructure applicative à travers l’intégration des technologies Cloud, de la conteneurisation et des pratiques DevOps.
+
+L’objectif principal est de garantir :
+
+\begin{itemize}[label=--]
+    \item La scalabilité de l’application 
+    \item La haute disponibilité des services 
+    \item L’automatisation des déploiements 
+    \item La portabilité des environnements 
+    \item La simplification de l’administration système
+\end{itemize}
+
+Pour atteindre ces objectifs, un VPS Linux a été provisionné et configuré, les services ont été conteneurisés via Docker et orchestrés avec Docker Compose, et un pipeline CI/CD a été mis en place avec GitHub Actions.
+
+%====================================================
+\section{Sprint 6 : Déploiement sur VPS}
+%====================================================
+
+%----------------------------------------------------
+\subsection{Objectif du Sprint}
+%----------------------------------------------------
+
+Ce sprint a pour objectif de mettre en place une infrastructure de production sécurisée basée sur un \textbf{VPS Linux (Ubuntu 22.04)} afin d’héberger les services applicatifs de LexAI et d’assurer une communication fiable entre les différents composants du système.
+
+Les travaux réalisés concernent :
+
+\begin{itemize}[label=--]
+    \item Le provisionnement et la configuration initiale du VPS
+    \item La configuration réseau et des règles de sécurité
+    \item L’installation de l’environnement Docker sur le serveur
+    \item Le déploiement des services applicatifs via Docker Compose
+\end{itemize}
+
+%----------------------------------------------------
+\subsection{Présentation du VPS}
+%----------------------------------------------------
+
+Un \textbf{VPS (Virtual Private Server)} est un serveur virtuel dédié hébergé chez un fournisseur Cloud, offrant un environnement Linux isolé avec des ressources garanties.
+
+Cette solution offre plusieurs avantages adaptés au projet LexAI :
+
+\begin{itemize}[label=--]
+    \item Environnement Linux dédié et isolé
+    \item Contrôle total sur la configuration système
+    \item Déploiement simplifié via SSH et Docker
+    \item Coût maîtrisé pour une infrastructure de production
+    \item Adresse IP publique fixe pour l’accès aux services
+\end{itemize}
+
+Dans notre projet, le VPS a été utilisé pour :
+
+\begin{itemize}[label=--]
+    \item Héberger l’ensemble des services Docker (backend, frontend, PostgreSQL, Redis, Celery)
+    \item Exécuter le script de déploiement automatique (\texttt{auto-deploy.sh})
+    \item Exposer l’interface LexAI via Nginx sur les ports HTTP/HTTPS
+    \item Assurer la persistance des données via des volumes Docker
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/chap5 1.png}
+    \caption{Vue d’ensemble de l’infrastructure VPS de production}
+    \label{fig:release3-cap1}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Provisionnement du VPS}
+%----------------------------------------------------
+
+Le VPS a été provisionné avec les ressources nécessaires à l’hébergement de la plateforme LexAI.
+
+La configuration retenue comprend :
+
+\begin{itemize}[label=--]
+    \item Système d’exploitation : Ubuntu 22.04 LTS
+    \item Docker Engine et Docker Compose installés
+    \item Git installé pour la récupération du code source
+    \item Ports ouverts : 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (API)
+\end{itemize}
+
+Les services hébergés sur le VPS sont :
+
+\begin{itemize}[label=--]
+    \item Le backend FastAPI (conteneur \texttt{lexai-backend})
+    \item Le frontend React/Nginx (conteneur \texttt{lexai-frontend})
+    \item La base de données PostgreSQL (conteneur \texttt{lexai-postgres})
+    \item Le broker Redis + worker Celery (conteneurs \texttt{lexai-redis}, \texttt{lexai-worker})
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 2.png}
+    \caption{Provisionnement de l’infrastructure VPS}
+    \label{fig:release3-cap2}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Configuration Réseau et Sécurité}
+%----------------------------------------------------
+
+Le réseau du VPS a été configuré afin d’assurer :
+
+\begin{itemize}[label=--]
+    \item L’isolation des conteneurs via le réseau Docker interne \texttt{lexai\_net}
+    \item La communication sécurisée entre les services
+    \item Le contrôle des flux réseau entrants et sortants
+\end{itemize}
+
+L’architecture réseau comprend :
+
+\begin{itemize}[label=--]
+    \item Un réseau Docker bridge interne (\texttt{lexai\_net}) pour la communication inter-services
+    \item Un reverse proxy Nginx exposant uniquement les ports 80 et 8000
+    \item Un pare-feu système bloquant tous les ports non autorisés
+    \item Une adresse IP publique fixe pour l’accès externe
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 3.png}
+    \caption{Configuration réseau du VPS}
+    \label{fig:release3-cap3}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Règles de Sécurité}
+%----------------------------------------------------
+
+Des règles de sécurité ont été configurées afin de contrôler les accès aux services hébergés sur le VPS.
+
+Les règles appliquées permettent :
+
+\begin{itemize}[label=--]
+    \item L’accès SSH sécurisé (port 22) pour l’administration
+    \item L’accès HTTP/HTTPS (ports 80/443) pour l’interface utilisateur
+    \item L’accès à l’API backend (port 8000) pour les requêtes frontend
+    \item Le blocage de tous les ports non autorisés
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 4.png}
+    \caption{Règles de sécurité du VPS}
+    \label{fig:release3-cap4}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Déploiement des Services Applicatifs}
+%----------------------------------------------------
+
+Les services applicatifs ont été déployés sur le VPS à l’aide de Docker Compose. Le projet a été récupéré depuis GitHub, les variables d’environnement configurées dans un fichier \texttt{.env.prod}, puis les conteneurs lancés.
+
+Les principales étapes réalisées sont :
+
+\begin{itemize}[label=--]
+    \item Connexion SSH au VPS
+    \item Clonage du dépôt GitHub (\texttt{git clone})
+    \item Configuration du fichier \texttt{.env.prod} (clés API, mots de passe)
+    \item Lancement des services : \texttt{docker compose -f docker-compose.prod.yml up -d}
+    \item Vérification de l’état des conteneurs : \texttt{docker compose ps}
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 6.png}
+    \caption{Déploiement des services applicatifs sur le VPS}
+    \label{fig:release3-cap5}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Clonage du Projet depuis GitHub}
+%----------------------------------------------------
+
+Le code source de LexAI a été récupéré depuis le dépôt GitHub directement sur le VPS.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 6.png}
+    \caption{Clonage du projet LexAI depuis GitHub sur le VPS}
+    \label{fig:release3-clonage}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Déploiement du Backend}
+%----------------------------------------------------
+
+Le backend FastAPI a été déployé en tant que conteneur Docker sur le VPS. Les variables d’environnement (connexion PostgreSQL, Redis, clés API Groq) sont injectées via le fichier \texttt{.env.prod}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 7.png}
+    \caption{Déploiement du backend LexAI sur le VPS}
+    \label{fig:release3-cap7}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Validation de l’Infrastructure}
+%----------------------------------------------------
+
+Plusieurs tests ont été réalisés afin de vérifier le bon fonctionnement de l’infrastructure déployée :
+
+\begin{itemize}[label=--]
+    \item Accessibilité de l’interface LexAI via l’adresse IP publique du VPS
+    \item Connectivité réseau entre les conteneurs Docker
+    \item Communication entre le frontend, le backend, PostgreSQL et Redis
+    \item Bon fonctionnement des règles de pare-feu
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 8.png}
+    \caption{Validation de la connectivité réseau et de l’accès à LexAI}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Gestion du Code Source avec Git}
+%----------------------------------------------------
+
+Git a été utilisé pour gérer les versions du projet et faciliter les mises à jour du serveur. Le dépôt GitHub centralise :
+
+\begin{itemize}[label=--]
+    \item Le code source frontend et backend
+    \item Les fichiers Docker et Docker Compose
+    \item Le workflow GitHub Actions (\texttt{.github/workflows/deploy.yml})
+    \item La documentation technique
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/chap5 9.png}
+    \caption{Gestion du code source LexAI avec Git et GitHub}
+    \label{fig:release3-cap8}
+\end{figure}
+
+
+\section{Sprint 7 : Conteneurisation avec Docker Compose}
+\subsection{Objectif du Sprint}
+Ce sprint a pour objectif de conteneuriser l’ensemble des services applicatifs de LexAI à l’aide de Docker et de les orchestrer via Docker Compose afin de garantir la portabilité et la reproductibilité des déploiements.
+
+Les travaux réalisés concernent :
+
+\begin{itemize}[label=--]
+    \item La rédaction des Dockerfiles pour chaque service
+    \item La configuration du fichier \texttt{docker-compose.prod.yml}
+    \item La mise en place des volumes persistants (PostgreSQL, uploads)
+    \item La configuration du réseau Docker interne \texttt{lexai\_net}
+\end{itemize}
+\subsection{Docker et Conteneurisation}
+Les services applicatifs ont été conteneurisés à l’aide de Docker afin de garantir :
+
+\begin{itemize}[label=--]
+    \item La portabilité
+    \item L’isolation
+    \item La standardisation des environnements
+\end{itemize}
+
+Les services conteneurisés comprennent :
+
+\begin{itemize}[label=--]
+    \item Le frontend
+    \item Le backend
+    \item Les services AI
+    \item Certains outils techniques
+\end{itemize}
+
+\subsection{Dockerfile des Services}
+Chaque service possède un Dockerfile permettant d’automatiser la génération des images applicatives.
+
+Les Dockerfiles définissent :
+
+\begin{itemize}[label=--]
+    \item Les dépendances
+    \item Les ports exposés
+    \item Les commandes de démarrage
+    \item L’environnement d’exécution
+\end{itemize}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=14cm]{images/dockerfile_frontend.png}
+    \caption{Exemple de Dockerfile}
+    \label{fig:dockerfile}
+\end{figure}
+\subsection{Docker Compose}
+Docker Compose a été utilisé afin de simplifier le lancement simultané des services applicatifs.
+
+Le fichier \texttt{docker-compose.yml} permet :
+
+\begin{itemize}[label=--]
+    \item La gestion des dépendances
+    \item La configuration réseau
+    \item Le déploiement multi-conteneurs
+\end{itemize}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=14cm]{images/dockercompose.png}
+    \caption{Configuration Docker Compose}
+    \label{fig:docker_compose}
+\end{figure}
+%====================================================
+\section{Sprint 8 : Pipeline CI/CD avec GitHub Actions}
+%====================================================
+
+\subsection{Objectif du Sprint}
+
+Ce sprint a pour objectif de mettre en place un pipeline d’intégration et de déploiement continus (CI/CD) afin d’automatiser la construction, les tests et la livraison des images Docker de la plateforme LexAI à chaque modification du code source.
+
+Les pratiques DevOps adoptées garantissent :
+
+\begin{itemize}[label=--]
+    \item L’intégration continue des modifications de code
+    \item La construction automatique des images Docker
+    \item La publication des images vers un registre centralisé (GHCR)
+    \item Le déploiement automatique sur le serveur de production sans intervention manuelle
+    \item La traçabilité complète de chaque livraison via les tags SHA Git
+\end{itemize}
+
+%----------------------------------------------------
+\subsection{Architecture du Pipeline CI/CD}
+%----------------------------------------------------
+
+Le pipeline CI/CD de LexAI repose sur \textbf{GitHub Actions}, un outil d’automatisation intégré nativement à GitHub. Il se déclenche automatiquement à chaque \textit{push} sur la branche \texttt{main}, assurant ainsi une livraison continue sans intervention manuelle.
+
+\vspace{0.5em}
+
+L’architecture du pipeline suit le schéma suivant :
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item Le développeur effectue un \texttt{git push} sur la branche \texttt{main}
+    \item GitHub Actions déclenche automatiquement le workflow \texttt{deploy.yml}
+    \item Le runner construit les images Docker du backend et du frontend
+    \item Les images sont publiées sur le \textbf{GitHub Container Registry (GHCR)} avec deux tags : \texttt{:latest} et \texttt{:SHA-commit}
+    \item Le serveur VPS exécute un script \texttt{auto-deploy.sh} (cron toutes les 5 minutes) qui détecte les nouveaux commits, effectue un \texttt{git pull} et relance les conteneurs via \texttt{docker compose up --build}
+\end{enumerate}
+
+%----------------------------------------------------
+\subsection{Structure du Workflow GitHub Actions}
+%----------------------------------------------------
+
+Le fichier \texttt{.github/workflows/deploy.yml} définit le pipeline CI/CD. Il comporte un job principal \texttt{build-push} qui s’exécute sur un runner Ubuntu et réalise les étapes suivantes :
+
+\begin{itemize}[label=--]
+    \item \textbf{Checkout} : récupération du code source depuis le dépôt Git
+    \item \textbf{Docker Buildx} : configuration du builder multi-plateforme
+    \item \textbf{Authentification GHCR} : connexion au registre GitHub Container Registry
+    \item \textbf{Build \& Push Backend} : construction de l’image \texttt{lexai-backend} et publication
+    \item \textbf{Build \& Push Frontend} : construction de l’image \texttt{lexai-frontend} avec injection de la variable \texttt{VITE\_API\_BASE\_URL=/api}
+\end{itemize}
+
+\vspace{0.5em}
+
+Le pipeline utilise le \textbf{cache de registre} (\texttt{type=registry}) pour réduire le temps de construction lors des modifications incrémentales, en réutilisant les couches Docker déjà construites.
+
+%----------------------------------------------------
+\subsection{Images Docker — Backend et Frontend}
+%----------------------------------------------------
+
+\subsubsection{Dockerfile Backend}
+
+Le backend FastAPI est conteneurisé avec une image Python 3.11-slim. Le Dockerfile réalise les étapes suivantes :
+
+\begin{itemize}[label=--]
+    \item Installation des dépendances système (poppler, tesseract, libmagic)
+    \item Installation des dépendances Python via \texttt{pip install -r requirements.txt}
+    \item Copie du code source de l’application
+    \item Exposition du port \texttt{8000}
+    \item Démarrage du serveur Uvicorn avec rechargement automatique
+\end{itemize}
+
+\subsubsection{Dockerfile Frontend}
+
+Le frontend React est conteneurisé en deux étapes (\textit{multi-stage build}) :
+
+\begin{itemize}[label=--]
+    \item \textbf{Étape build} : image Node 20-alpine, installation des dépendances npm, compilation Vite (\texttt{npm run build}) avec injection de \texttt{VITE\_API\_BASE\_URL}
+    \item \textbf{Étape production} : image Nginx Alpine, copie des fichiers compilés depuis \texttt{dist/}, configuration du reverse proxy pour l’API backend et le routage SPA React
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=14cm]{images/docker.png}
+    \caption{Dockerfile du service Frontend (multi-stage build)}
+    \label{fig:dockerfile-frontend}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Orchestration avec Docker Compose}
+%----------------------------------------------------
+
+Le fichier \texttt{docker-compose.yml} orchestre l’ensemble des services de la plateforme LexAI en un seul fichier de configuration déclaratif. Les services définis sont :
+
+\begin{itemize}[label=--]
+    \item \textbf{postgres} : base de données PostgreSQL 16, avec volume persistant et healthcheck
+    \item \textbf{redis} : broker de messages Redis 7 pour la file de tâches Celery
+    \item \textbf{backend} : service FastAPI exposé sur le port \texttt{8000}, dépendant de postgres et redis
+    \item \textbf{celery-worker} : worker Celery pour l’exécution asynchrone des tâches d’analyse (Agents 1 à 4)
+    \item \textbf{frontend} : service Nginx exposé sur le port \texttt{80}, servant l’interface React et proxifiant les requêtes \texttt{/api/} vers le backend
+\end{itemize}
+
+\vspace{0.5em}
+
+Tous les services partagent le même réseau Docker interne \texttt{lexai-net} (bridge) pour communiquer de façon isolée. Les secrets (clés API, mots de passe) sont injectés via un fichier \texttt{.env} non versionné.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=14cm]{images/dockercompose.png}
+    \caption{Extrait du fichier docker-compose.yml — services backend, redis et postgres}
+    \label{fig:docker-compose-full}
+\end{figure}
+
+%----------------------------------------------------
+\subsection{Déploiement Automatique sur VPS}
+%----------------------------------------------------
+
+Le serveur de production est un VPS Linux (Ubuntu 22.04) hébergé sur un fournisseur Cloud. Le déploiement sur le VPS est entièrement automatisé via un script \texttt{auto-deploy.sh} exécuté toutes les 5 minutes par \texttt{cron}.
+
+\vspace{0.5em}
+
+Le script réalise les opérations suivantes :
+
+\begin{enumerate}
+    \item Exécution d’un \texttt{git fetch} pour récupérer les métadonnées du dépôt distant
+    \item Comparaison du SHA local et du SHA distant : si identiques, aucune action
+    \item En cas de nouveau commit : \texttt{git reset --hard origin/main} pour mettre à jour le code
+    \item Relance des conteneurs : \texttt{docker compose up --build -d} pour reconstruire et redémarrer les services modifiés
+    \item Nettoyage des images Docker obsolètes : \texttt{docker image prune -f}
+\end{enumerate}
+
+\vspace{0.5em}
+
+Cette approche de déploiement continu (CD) basée sur le \textit{polling} Git élimine le besoin d’une connexion SSH entrante depuis GitHub Actions, contournant ainsi les restrictions de pare-feu du VPS.
+
+%----------------------------------------------------
+\subsection{Registre d’Images — GitHub Container Registry (GHCR)}
+%----------------------------------------------------
+
+Les images Docker construites par le pipeline CI sont publiées sur le \textbf{GitHub Container Registry (GHCR)}, un registre OCI intégré à GitHub. Chaque image est taguée avec deux identifiants :
+
+\begin{itemize}[label=--]
+    \item \texttt{:latest} — image la plus récente, utilisée pour le déploiement
+    \item \texttt{:SHA-commit} — identifiant unique du commit Git, permettant un retour en arrière (\textit{rollback}) précis vers n’importe quelle version antérieure
+\end{itemize}
+
+\vspace{0.5em}
+
+L’authentification au registre est réalisée via le token \texttt{GITHUB\_TOKEN} généré automatiquement par GitHub Actions, sans nécessiter de secret supplémentaire.
+
+%----------------------------------------------------
+\subsection{Bilan DevOps}
+%----------------------------------------------------
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|>{\RaggedRight\arraybackslash}p{3.5cm}|>{\RaggedRight\arraybackslash}p{4cm}|>{\RaggedRight\arraybackslash}p{5cm}|}
+\hline
+\textbf{Pratique DevOps} & \textbf{Outil utilisé} & \textbf{Bénéfice} \\
+\hline
+Intégration Continue (CI) & GitHub Actions & Détection automatique des erreurs de build \\
+\hline
+Livraison Continue (CD) & GHCR + cron VPS & Déploiement sans intervention manuelle \\
+\hline
+Conteneurisation & Docker + Dockerfile & Portabilité et reproductibilité \\
+\hline
+Orchestration locale & Docker Compose & Gestion multi-services simplifiée \\
+\hline
+Gestion des secrets & Fichier \texttt{.env} & Sécurisation des clés API et mots de passe \\
+\hline
+Versionnage images & Tag SHA Git & Rollback précis vers toute version \\
+\hline
+Cache build & Docker layer cache & Réduction du temps de build CI \\
+\hline
+\end{tabular}
+\caption{Bilan des pratiques DevOps adoptées pour LexAI}
+\label{tab:devops-bilan}
+\end{table}
+
+\newpage
+
+%====================================================
+\subsection{Conclusion}
+Cette release a permis de mettre en place une infrastructure de production moderne basée sur un VPS Linux, Docker et un pipeline CI/CD automatisé avec GitHub Actions.
+
+L’utilisation de ces technologies a permis :
+
+\begin{itemize}[label=--]
+    \item D’améliorer la portabilité des services grâce à la conteneurisation Docker
+    \item De standardiser les environnements de développement et de production
+    \item D’assurer une meilleure scalabilité de l’infrastructure via Docker Compose
+    \item De simplifier et d’automatiser le déploiement des applications grâce au pipeline CI/CD
+    \item De garantir la traçabilité complète de chaque livraison via les tags SHA Git
+\end{itemize}
+
+L’architecture DevOps mise en œuvre constitue une base robuste et évolutive, adaptée à la croissance future de la plateforme LexAI.
