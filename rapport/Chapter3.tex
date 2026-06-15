@@ -1,0 +1,744 @@
+\setcounter{chapter}{3}
+\setcounter{section}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+
+\thispagestyle{empty}
+\begin{center}
+    \vspace*{\fill}
+    {\fontsize{40pt}{48pt}\selectfont \textcolor{black}{\textsc{Chapitre 3}}}\\[2em]
+    {\fontsize{22pt}{26pt}\selectfont \textbf{Release 1 : Extraction documentaire et Analyse NLP}}
+    \vspace*{\fill}
+\end{center}
+\newpage
+\addcontentsline{toc}{chapter}{Chapitre 3 : Release 1 : Extraction documentaire et Analyse NLP}
+\fancyhead[LO,LE]{\textbf{Chapitre 3 : Release 1 : Extraction documentaire et Analyse NLP}}
+
+\section{Introduction}
+
+Dans ce chapitre, nous présentons le travail réalisé lors de la première release, composée de deux sprints. Le \textbf{Sprint 1} couvre l'Agent 1, responsable de l'ingestion et de l'extraction documentaire. Le \textbf{Sprint 2} couvre l'Agent 2, responsable de l'analyse NLP des clauses contractuelles. Pour chaque sprint, nous détaillons le backlog, l'analyse fonctionnelle avec les diagrammes UML, la conception de la base de données et la réalisation des interfaces.
+
+\section{Planification des sprints de la Release 1}
+
+La Release 1 est planifiée en deux sprints successifs de deux semaines chacun.
+Le Sprint 1 porte sur l'ingestion et l'extraction documentaire (Agent 1),
+et le Sprint 2 sur l'analyse NLP des clauses (Agent 2).
+Cette organisation permet une mise en œuvre progressive du pipeline d'ingestion.
+
+% ======================================================
+\section{Sprint 1 : Agent 1 — Pipeline d'extraction documentaire}
+% ======================================================
+
+\subsection{Backlog du Sprint 1}
+
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{2.8cm}|>{\RaggedRight\arraybackslash}p{3.5cm}|>{\centering\arraybackslash}p{1.5cm}|>{\centering\arraybackslash}p{1.8cm}|>{\RaggedRight\arraybackslash}p{4.2cm}|}
+\hline
+\textbf{Nom} & \textbf{Description} & \textbf{Priorité} & \textbf{Estimation} & \textbf{Tâches de développement} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Nom} & \textbf{Description} & \textbf{Priorité} & \textbf{Estimation} & \textbf{Tâches de développement} \\
+\hline
+\endhead
+
+Téléversement de contrat &
+En tant que juriste, je veux déposer un fichier contractuel sur la plateforme. &
+Haute & 2 jours &
+- Validation MIME et extension\newline
+- Limite taille (50~Mo)\newline
+- Sauvegarde sur disque\newline
+- Création enregistrement DB \\
+\hline
+
+Extraction PDF &
+En tant que système, je veux extraire le texte d'un PDF via PyMuPDF. &
+Haute & 2 jours &
+- Implémentation \texttt{PdfProvider}\newline
+- Extraction page par page\newline
+- Détection PDF scanné\newline
+- Collecte métadonnées \\
+\hline
+
+Extraction DOCX/DOC &
+En tant que système, je veux extraire le texte d'un Word via python-docx. &
+Haute & 1 jour &
+- Implémentation \texttt{DocxProvider}\newline
+- Extraction paragraphes\newline
+- Détection titres/sections \\
+\hline
+
+Extraction TXT/HTML &
+En tant que système, je veux extraire le texte d'un fichier TXT ou HTML. &
+Moyenne & 1 jour &
+- Implémentation \texttt{TxtProvider}\newline
+- Implémentation \texttt{HtmlProvider}\newline
+- Nettoyage scripts/CSS \\
+\hline
+
+Normalisation du texte &
+En tant que système, je veux normaliser le texte extrait pour le préparer à l'analyse NLP. &
+Haute & 1 jour &
+- UTF-8, CRLF → LF\newline
+- Collapsage espaces multiples\newline
+- Collapsage sauts de ligne \\
+\hline
+
+Tâche Celery asynchrone &
+En tant que système, je veux exécuter l'extraction en arrière-plan avec suivi de progression. &
+Haute & 2 jours &
+- Tâche Celery avec statuts\newline
+- Mise à jour \% progression\newline
+- Gestion des erreurs et retry \\
+\hline
+
+API REST \& Frontend &
+En tant que juriste, je veux suivre l'avancement et consulter les résultats d'extraction. &
+Haute & 2 jours &
+- Endpoints GET /documents\newline
+- Composant ProgressCard\newline
+- Composant ExtractionViewer \\
+\hline
+
+\caption{Backlog du Sprint 1 — Agent 1}
+\label{tab:sprint1_agent1}
+\end{longtable}
+
+\subsection{Analyse des besoins du Sprint 1}
+
+\subsubsection{Diagramme de cas d'utilisation du Sprint 1}
+
+Le diagramme ci-dessous illustre les interactions entre les acteurs et le système lors du Sprint 1, couvrant le téléversement, le suivi et la consultation des résultats d'extraction.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{images/uc_sprint1.png}
+    \caption{Diagramme de cas d'utilisation du Sprint 1}
+    \label{fig:uc_sprint1}
+\end{figure}
+
+\subsubsection{Description du cas d'utilisation : « Téléverser et extraire un contrat »}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|p{4cm}|p{12cm}|}
+\hline
+\textbf{Cas d'utilisation} & \textbf{Téléverser et extraire un contrat} \\
+\hline
+Acteur & Juriste / Responsable légal \\
+\hline
+Pré-condition & L'utilisateur dispose d'un contrat au format PDF, DOCX, TXT ou HTML \\
+\hline
+Post-condition & Le texte du contrat est extrait, normalisé et disponible pour l'analyse NLP \\
+\hline
+Description du scénario principal &
+1- Le juriste sélectionne un fichier via l'interface de téléversement\newline
+2- Le système valide le type MIME, l'extension et la taille du fichier\newline
+3- Le fichier est sauvegardé sur le serveur et un enregistrement \textit{Document} est créé en base avec le statut \texttt{queued}\newline
+4- Une tâche Celery est déclenchée ; le statut passe à \texttt{extracting}\newline
+5- Le provider approprié extrait le texte brut\newline
+6- Le texte est normalisé\newline
+7- Les résultats sont persistés dans la table \texttt{extractions}\newline
+8- Le statut passe à \texttt{extracted} et la progression atteint 100\% \\
+\hline
+Exception &
+- Format non supporté : message d'erreur retourné à l'utilisateur\newline
+- Fichier trop volumineux (> 50~Mo) : rejet immédiat\newline
+- Échec d'extraction : statut \texttt{failed}, message d'erreur persisté, option de relance disponible \\
+\hline
+\end{tabular}
+\caption{Description textuelle du cas « Téléverser et extraire un contrat »}
+\label{tab:uc_extraction}
+\end{table}
+
+\subsubsection{Diagramme de séquence « Téléverser et extraire un contrat »}
+
+Le diagramme de séquence ci-dessous illustre le déroulement temporel des interactions entre le juriste, l'API FastAPI, le worker Celery, le registre de providers et la base de données lors de l'extraction d'un contrat.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/seq_sprint1.png}
+    \caption{Diagramme de séquence : Téléverser et extraire un contrat}
+    \label{fig:seq_extraction}
+\end{figure}
+
+\subsection{Conception du Sprint 1}
+
+\subsubsection{Dictionnaire des données du Sprint 1}
+
+Le tableau~\ref{tab:dict_sprint1} présente la structure des tables créées lors du Sprint 1.
+
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|>{\small\bfseries\centering\arraybackslash}p{2.5cm}|>{\ttfamily\raggedright\arraybackslash}p{3.6cm}|>{\raggedright\arraybackslash}p{2.5cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{3.9cm}|}
+\caption{Dictionnaire des données du Sprint 1}
+\label{tab:dict_sprint1} \\
+\hline
+\rowcolor[HTML]{D6E4F0}
+{\normalfont\textbf{Table}} & {\normalfont\textbf{Attribut}} & {\normalfont\textbf{Type}} & {\normalfont\textbf{Contraintes}} & {\normalfont\textbf{Description}} \\
+\hline
+\endfirsthead
+\hline
+\rowcolor[HTML]{D6E4F0}
+{\normalfont\textbf{Table}} & {\normalfont\textbf{Attribut}} & {\normalfont\textbf{Type}} & {\normalfont\textbf{Contraintes}} & {\normalfont\textbf{Description}} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+
+\rowcolor[HTML]{EBF5FB}
+\multirow{13}{*}{\normalfont\texttt{documents}}
+ & id & \normalfont SERIAL & \normalfont PK & \normalfont Identifiant unique du document \\
+\cline{2-5}
+ & filename & \normalfont VARCHAR(255) & \normalfont NOT NULL & \normalfont Nom de fichier généré par le serveur \\
+\cline{2-5}
+ & original\_filename & \normalfont VARCHAR(255) & \normalfont NOT NULL & \normalfont Nom original du fichier téléversé \\
+\cline{2-5}
+ & mime\_type & \normalfont VARCHAR(100) & \normalfont NOT NULL & \normalfont Type MIME détecté automatiquement \\
+\cline{2-5}
+ & file\_size & \normalfont INTEGER & \normalfont NOT NULL & \normalfont Taille du fichier en octets \\
+\cline{2-5}
+ & status & \normalfont VARCHAR(50) & \normalfont NOT NULL & \normalfont État du pipeline : \textit{queued, extracting, extracted, failed} \\
+\cline{2-5}
+ & progress\_percent & \normalfont INTEGER & \normalfont DEFAULT 0 & \normalfont Avancement du traitement (0–100) \\
+\cline{2-5}
+ & progress\_stage & \normalfont VARCHAR(100) & \normalfont NULLABLE & \normalfont Étape courante du pipeline \\
+\cline{2-5}
+ & progress\_message & \normalfont TEXT & \normalfont NULLABLE & \normalfont Message d'état lisible par l'utilisateur \\
+\cline{2-5}
+ & last\_error & \normalfont TEXT & \normalfont NULLABLE & \normalfont Dernier message d'erreur enregistré \\
+\cline{2-5}
+ & task\_id & \normalfont VARCHAR(255) & \normalfont NULLABLE & \normalfont Identifiant de la tâche Celery \\
+\cline{2-5}
+ & created\_at & \normalfont TIMESTAMP & \normalfont NOT NULL & \normalfont Date de téléversement \\
+\cline{2-5}
+ & finished\_at & \normalfont TIMESTAMP & \normalfont NULLABLE & \normalfont Date de fin du pipeline \\
+\hline
+
+\rowcolor[HTML]{EAF9EA}
+\multirow{8}{*}{\normalfont\texttt{extractions}}
+ & id & \normalfont SERIAL & \normalfont PK & \normalfont Identifiant unique de l'extraction \\
+\cline{2-5}
+ & document\_id & \normalfont INTEGER & \normalfont FK → documents & \normalfont Référence au document parent \\
+\cline{2-5}
+ & raw\_text & \normalfont TEXT & \normalfont NOT NULL & \normalfont Texte brut extrait du fichier source \\
+\cline{2-5}
+ & normalized\_text & \normalfont TEXT & \normalfont NOT NULL & \normalfont Texte normalisé, entrée de l'Agent 2 \\
+\cline{2-5}
+ & structure\_json & \normalfont TEXT & \normalfont NULLABLE & \normalfont Structure du document (sections, titres) \\
+\cline{2-5}
+ & page\_metadata\_json & \normalfont TEXT & \normalfont NULLABLE & \normalfont Métadonnées par page (PDF uniquement) \\
+\cline{2-5}
+ & warnings & \normalfont JSONB & \normalfont NULLABLE & \normalfont Avertissements d'extraction (encodage, PDF scanné) \\
+\cline{2-5}
+ & created\_at & \normalfont TIMESTAMP & \normalfont NOT NULL & \normalfont Date de création de l'enregistrement \\
+\end{longtable}
+\renewcommand{\arraystretch}{1.3}
+
+\subsection{Réalisation du Sprint 1}
+
+\subsubsection{Interface de téléversement de contrat}
+
+L'interface de téléversement permet au juriste de déposer un contrat par glisser-déposer ou via un sélecteur de fichiers. Les formats acceptés (PDF, DOCX, TXT, HTML) sont clairement indiqués.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{images/upload_interface.png}
+    \caption{Interface de téléversement de contrat}
+    \label{fig:upload_interface}
+\end{figure}
+
+\subsubsection{Interface de suivi de progression}
+
+La carte de progression affiche l'état courant du traitement (étape et pourcentage), le nom du fichier et un indicateur visuel de la barre de progression, actualisés toutes les deux secondes.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/progress_card.png}
+    \caption{Interface de suivi de progression du traitement}
+    \label{fig:progress_card}
+\end{figure}
+
+\subsubsection{Interface de visualisation des résultats d'extraction}
+
+L'ExtractionViewer présente au juriste le texte brut, le texte normalisé, la structure détectée (sections, titres) et les éventuels avertissements (PDF scanné, encodage non reconnu).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/extraction_viewer.png}
+    \caption{Interface de visualisation des résultats d'extraction}
+    \label{fig:extraction_viewer}
+\end{figure}
+
+% ======================================================
+\section{Sprint 2 : Agent 2 — Analyse NLP des clauses}
+% ======================================================
+
+\subsection{Backlog du Sprint 2}
+
+\renewcommand{\arraystretch}{1.4}
+\begin{longtable}{|p{3.0cm}|p{5.8cm}|>{\centering\arraybackslash}p{1.4cm}|p{5.0cm}|}
+\caption{Backlog du Sprint 2 — Agent 2}
+\label{tab:sprint2_agent2} \\
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Estim.} & \textbf{Tâches de développement} \\
+\hline
+\endfirsthead
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Estim.} & \textbf{Tâches de développement} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+
+\rowcolor[HTML]{EBF5FB}
+Détection de la langue &
+En tant que système, je veux détecter automatiquement la langue du contrat (fr/ar/en) pour adapter le traitement NLP. &
+1j &
+Module \texttt{LanguageDetector} ; heuristique caractères arabes ; fallback \texttt{langdetect}. \\
+\hline
+
+Segmentation en clauses &
+En tant que juriste, je veux que le contrat soit segmenté en clauses individuelles avec leurs positions. &
+3j &
+Stratégie \texttt{structure\_json} ; regex en-têtes d'articles ; fallback sauts de paragraphe ; calcul offsets caractères. \\
+\hline
+
+\rowcolor[HTML]{EBF5FB}
+Extraction d'entités juridiques &
+En tant que juriste, je veux identifier automatiquement les parties, rôles, durées, montants et références légales. &
+2j &
+Intégration spaCy NER ; patterns PARTY/ROLE, DATA\_CATEGORY, LAW\_REFERENCE, DURATION. \\
+\hline
+
+Classification des clauses &
+En tant que juriste, je veux que chaque clause soit classifiée selon sa nature (obligation, résiliation, confidentialité, etc.). &
+3j &
+Intégration XLM-RoBERTa zero-shot ; cache pipeline niveau module ; heuristique mots-clés fallback ; détection flags de conformité. \\
+\hline
+
+\rowcolor[HTML]{EBF5FB}
+Tâche Celery + API &
+En tant que juriste, je veux consulter l'analyse NLP d'un document via l'API REST. &
+1j &
+Tâche \texttt{run\_nlp\_analysis} ; endpoint \texttt{GET /analysis} ; endpoint \texttt{GET /clauses}. \\
+\hline
+
+Interface \texttt{AnalysisViewer} &
+En tant que juriste, je veux visualiser les clauses, leurs labels, entités et flags de conformité dans une interface dédiée. &
+2j &
+Composant \texttt{AnalysisViewer} ; filtres par label et flag ; badges entités colorés. \\
+\hline
+
+\end{longtable}
+\renewcommand{\arraystretch}{1.3}
+
+\subsection{Analyse des besoins du Sprint 2}
+
+\paragraph{Besoins fonctionnels}
+\begin{itemize}
+    \item Détecter automatiquement la langue du document (français, arabe, anglais).
+    \item Segmenter le texte normalisé en clauses individuelles avec leurs positions (offset de début et de fin).
+    \item Classifier chaque clause selon 12 types : \textit{definition, obligation, liability, termination, data\_processing, confidentiality, dispute\_resolution, force\_majeure, penalty, ip\_rights, payment, warranty}.
+    \item Extraire les entités nommées juridiques : PARTY, ROLE, DATA\_CATEGORY, DURATION, AMOUNT, LAW\_REFERENCE, JURISDICTION, DATE.
+    \item Détecter les flags de conformité : \textit{lnpdp\_relevant, gdpr\_relevant, missing\_retention\_period, missing\_consent\_mechanism, missing\_security\_measures, missing\_data\_subject\_rights, unlawful\_cross\_border\_transfer, excessive\_data\_collection}.
+    \item Déclencher automatiquement l'analyse après la fin de l'extraction (chaînage Celery).
+\end{itemize}
+
+\paragraph{Besoins non fonctionnels}
+\begin{itemize}
+    \item \textbf{Performance :} Le pipeline NLP ne doit pas recharger le modèle de transformeurs à chaque clause. Le pipeline est chargé une fois en mémoire au niveau module.
+    \item \textbf{Résilience :} En l'absence de modèle fine-tuné, le système bascule automatiquement en mode zero-shot, puis en mode heuristique par mots-clés.
+    \item \textbf{Observabilité :} Le mode de classification actif (fine-tuné / zero-shot / heuristique) est tracé dans les logs au démarrage.
+\end{itemize}
+
+\subsubsection{Diagramme de cas d'utilisation du Sprint 2}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{images/uc_sprint2.png}
+    \caption{Diagramme de cas d'utilisation du Sprint 2}
+    \label{fig:uc_sprint2}
+\end{figure}
+
+\subsubsection{Description du cas d'utilisation : « Analyser les clauses NLP »}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|p{4cm}|p{12cm}|}
+\hline
+\textbf{Cas d'utilisation} & \textbf{Analyser les clauses NLP} \\
+\hline
+Acteur & Système (déclenchement automatique après extraction) \\
+\hline
+Pré-condition & Le document est au statut \texttt{extracted} et le texte normalisé est disponible \\
+\hline
+Post-condition & Les clauses sont segmentées, classifiées et les entités extraites ; le document passe à \texttt{analyzed} \\
+\hline
+Description du scénario principal &
+1- La tâche Celery \texttt{run\_nlp\_analysis} est déclenchée automatiquement à la fin de l'extraction\newline
+2- Le \texttt{LanguageDetector} identifie la langue du texte\newline
+3- Le \texttt{ClauseSegmenter} découpe le texte en clauses (3 stratégies)\newline
+4- Pour chaque clause, l'\texttt{EntityExtractor} identifie les entités nommées\newline
+5- Pour chaque clause, le \texttt{ClauseClassifier} assigne les labels et flags de conformité\newline
+6- Les résultats sont persistés dans la table \texttt{nlp\_analyses}\newline
+7- Le statut du document passe à \texttt{analyzed} \\
+\hline
+Exception &
+- Modèle NLP non disponible : bascule automatique sur heuristique par mots-clés\newline
+- Texte vide ou illisible : clause marquée comme non classifiable \\
+\hline
+\end{tabular}
+\caption{Description textuelle du cas « Analyser les clauses NLP »}
+\label{tab:uc_nlp}
+\end{table}
+
+\subsubsection{Diagramme de séquence « Analyser les clauses NLP »}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/seq_sprint2.png}
+    \caption{Diagramme de séquence : Analyser les clauses NLP}
+    \label{fig:seq_nlp}
+\end{figure}
+
+\subsection{Conception du Sprint 2}
+
+\subsubsection{Dictionnaire des données du Sprint 2}
+
+\renewcommand{\arraystretch}{1.5}
+\begin{longtable}{|>{\small\bfseries\centering\arraybackslash}p{2.5cm}|>{\ttfamily\footnotesize\raggedright\arraybackslash}p{3.8cm}|>{\raggedright\arraybackslash}p{2.4cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{3.9cm}|}
+\caption{Dictionnaire des données du Sprint 2}
+\label{tab:dict_sprint2} \\
+\hline
+\rowcolor[HTML]{D6E4F0}
+{\normalfont\textbf{Table}} & {\normalfont\textbf{Attribut}} & {\normalfont\textbf{Type}} & {\normalfont\textbf{Contraintes}} & {\normalfont\textbf{Description}} \\
+\hline
+\endfirsthead
+\hline
+\rowcolor[HTML]{D6E4F0}
+{\normalfont\textbf{Table}} & {\normalfont\textbf{Attribut}} & {\normalfont\textbf{Type}} & {\normalfont\textbf{Contraintes}} & {\normalfont\textbf{Description}} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+
+\rowcolor[HTML]{EBF5FB}
+\multirow{8}{*}{\normalfont\texttt{nlp\_analyses}}
+ & id & \normalfont SERIAL & \normalfont PK & \normalfont Identifiant unique de l'analyse NLP \\
+\cline{2-5}
+ & document\_id & \normalfont INTEGER & \normalfont FK → documents & \normalfont Référence au document parent \\
+\cline{2-5}
+ & language & \normalfont VARCHAR(10) & \normalfont NOT NULL & \normalfont Langue détectée du contrat (fr/ar/en) \\
+\cline{2-5}
+ & clause\_count & \normalfont INTEGER & \normalfont NOT NULL & \normalfont Nombre de clauses segmentées \\
+\cline{2-5}
+ & clauses\_json & \normalfont TEXT & \normalfont NOT NULL & \normalfont Tableau JSON des objets clause \\
+\cline{2-5}
+ & entities\_json & \normalfont TEXT & \normalfont NULLABLE & \normalfont Entités nommées agrégées du document \\
+\cline{2-5}
+ & analysis\_metadata\_json & \normalfont TEXT & \normalfont NULLABLE & \normalfont Métadonnées d'analyse (modèle, durée) \\
+\cline{2-5}
+ & created\_at & \normalfont TIMESTAMP & \normalfont NOT NULL & \normalfont Date de création de l'enregistrement \\
+\hline
+
+\rowcolor[HTML]{FFF3CD}
+\multicolumn{5}{|l|}{\normalfont\textbf{\textit{Structure d'un objet clause dans \texttt{clauses\_json} :}}} \\
+\hline
+
+\rowcolor[HTML]{FFF9E6}
+\multirow{9}{*}{\normalfont clause}
+ & clause\_id & \normalfont VARCHAR(50) & \normalfont — & \normalfont Identifiant unique de clause (c-001, c-002…) \\
+\cline{2-5}
+ & text & \normalfont TEXT & \normalfont — & \normalfont Texte brut de la clause \\
+\cline{2-5}
+ & start\_char & \normalfont INTEGER & \normalfont — & \normalfont Offset de début dans le texte normalisé \\
+\cline{2-5}
+ & end\_char & \normalfont INTEGER & \normalfont — & \normalfont Offset de fin dans le texte normalisé \\
+\cline{2-5}
+ & labels & \normalfont JSONB & \normalfont — & \normalfont Types de clause détectés \\
+\cline{2-5}
+ & compliance\_flags & \normalfont JSONB & \normalfont — & \normalfont Flags de conformité (LNPDP, GDPR…) \\
+\cline{2-5}
+ & entities & \normalfont JSONB & \normalfont — & \normalfont Entités nommées extraites de la clause \\
+\cline{2-5}
+ & confidence & \normalfont FLOAT & \normalfont — & \normalfont Score de confiance du classifieur (0–1) \\
+\cline{2-5}
+ & language & \normalfont VARCHAR(10) & \normalfont — & \normalfont Langue de la clause \\
+\end{longtable}
+\renewcommand{\arraystretch}{1.3}
+
+%----------------------------------------------------
+\subsection{Construction du dataset et entraînement du modèle}
+%----------------------------------------------------
+
+\subsubsection{Problématique et stratégie}
+
+L'un des défis majeurs du projet LexAI est l'absence d'un corpus annoté de clauses contractuelles en langue française adapté au contexte tunisien. Pour y remédier, un dataset multi-sources a été construit, combinant des données juridiques anglophones de référence avec des exemples synthétiques en français, afin d'entraîner un modèle de classification multi-label de clauses.
+
+\subsubsection{Sources de données}
+
+Le dataset final est issu de trois sources complémentaires, fusionnées et équilibrées via le script \texttt{build\_dataset.py} :
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|>{\bfseries}p{3.5cm}|p{2.2cm}|p{8.5cm}|}
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Source} & \textbf{Langue} & \textbf{Description} \\
+\hline
+CUAD & Anglais & Contract Understanding Atticus Dataset — 510 contrats commerciaux annotés, référence académique pour la classification de clauses \\
+\hline
+LEDGAR & Anglais & Large-scale legal clause dataset — plus de 800 000 clauses issues de dépôts SEC, couvrant 100 types de clauses \\
+\hline
+Synthetic French & Français & Clauses synthétiques en français générées par \texttt{generate\_synthetic.py}, couvrant les 12 types cibles dans le contexte du droit tunisien \\
+\hline
+\end{tabular}
+\caption{Sources du dataset d'entraînement — Agent 2}
+\label{tab:dataset_sources}
+\end{table}
+
+\subsubsection{Construction et équilibrage du dataset}
+
+Pour éviter la domination d'une seule source et garantir la présence du français dans le modèle, les règles suivantes ont été appliquées :
+
+\begin{itemize}[nosep, topsep=3pt]
+    \item \textbf{Plafonnement par label :} maximum 5 000 exemples par classe pour éviter le déséquilibre lié à la sur-représentation des clauses d'\textit{obligation} dans LEDGAR.
+    \item \textbf{Sur-échantillonnage du français :} les exemples en français sont dupliqués ×4 pour compenser le volume beaucoup plus faible de données françaises par rapport aux données anglophones.
+    \item \textbf{Division :} 80\% entraînement — 10\% validation — 10\% test (graine aléatoire fixe : 42).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/dataset_pipeline.png}
+    \caption{Pipeline de construction du dataset d'entraînement}
+    \label{fig:dataset_pipeline}
+\end{figure}
+
+\subsubsection{Architecture du modèle}
+
+Le modèle retenu est \textbf{XLM-RoBERTa base} (\texttt{xlm-roberta-base}), un modèle de langue multilingue pré-entraîné sur 100 langues dont le français et l'anglais. Il a été fine-tuné pour la \textbf{classification multi-label} sur les 12 types de clauses cibles.
+
+Les paramètres d'entraînement sont :
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{5cm}|p{8.5cm}|}
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Paramètre} & \textbf{Valeur} \\
+\hline
+Modèle de base & \texttt{xlm-roberta-base} (HuggingFace) \\
+\hline
+Tâche & Classification multi-label (12 classes indépendantes) \\
+\hline
+Fonction de perte & \texttt{BCEWithLogitsLoss} (décision binaire par label) \\
+\hline
+Longueur maximale & 256 tokens par clause \\
+\hline
+Taille de batch & 16 \\
+\hline
+Nombre d'époques & 4 \\
+\hline
+Taux d'apprentissage & $2 \times 10^{-5}$ \\
+\hline
+Seuil de décision & 0.40 (score sigmoid pour activer un label) \\
+\hline
+Sortie & \texttt{data/models/clause\_classifier/} \\
+\hline
+\end{tabular}
+\caption{Paramètres d'entraînement du modèle XLM-RoBERTa}
+\label{tab:training_params}
+\end{table}
+
+\subsubsection{Labels de classification}
+
+Le modèle classifie chaque clause selon 12 types mutuellement non-exclusifs :
+
+\vspace{0.4em}
+\begin{center}
+\texttt{definition} · \texttt{obligation} · \texttt{liability} · \texttt{termination} · \texttt{data\_processing} · \texttt{confidentiality} \\[0.3em]
+\texttt{dispute\_resolution} · \texttt{force\_majeure} · \texttt{penalty} · \texttt{ip\_rights} · \texttt{payment} · \texttt{warranty}
+\end{center}
+\vspace{0.4em}
+
+\subsubsection{Stratégie de déploiement du modèle}
+
+Le \texttt{ClauseClassifier} implémente une stratégie de repli en trois niveaux pour garantir un résultat dans tous les cas :
+
+\begin{enumerate}[nosep, topsep=3pt]
+    \item \textbf{Modèle fine-tuné} (\texttt{data/models/clause\_classifier/}) — meilleure précision, utilisé si disponible.
+    \item \textbf{Zero-shot XLM-RoBERTa} (\texttt{joelniklaus/legal-xlm-roberta-large}) — aucun entraînement requis, utilisé si le modèle fine-tuné est absent.
+    \item \textbf{Heuristique par mots-clés} — toujours disponible, ne nécessite aucun modèle externe.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\textwidth]{images/classifier_pipeline.png}
+    \caption{Stratégie de classification multi-niveaux du \texttt{ClauseClassifier}}
+    \label{fig:classifier_pipeline}
+\end{figure}
+
+\subsection{Réalisation du Sprint 2}
+
+\subsubsection{Interface de visualisation de l'analyse NLP}
+
+Le composant \texttt{AnalysisViewer} présente les clauses segmentées sous forme de cartes. Chaque carte affiche le texte de la clause, ses labels (types de clause), son score de confiance, ses flags de conformité mis en évidence et les entités nommées extraites sous forme de badges colorés selon leur type.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/nlp.png}
+    \caption{Interface de visualisation de l'analyse NLP}
+    \label{fig:analysis_viewer}
+\end{figure}
+
+\section{Gestion des migrations de base de données}
+
+\subsection{Outil : Alembic}
+
+La plateforme LexAI utilise \textbf{Alembic}, le gestionnaire de migrations de SQLAlchemy, pour versionner l'évolution du schéma de la base de données PostgreSQL. Chaque modification du schéma (ajout d'une table, d'une colonne, d'un index) est enregistrée sous forme d'un fichier de migration versionné, garantissant la reproductibilité et la réversibilité des changements.
+
+\subsection{Historique des migrations de la Release 1}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{3cm}|p{4cm}|p{7cm}|}
+\hline
+\textbf{Version} & \textbf{Nom} & \textbf{Tables créées / modifiées} \\
+\hline
+\texttt{0001} & Initial schema & Table \texttt{documents} avec tous les champs de statut et de progression \\
+\hline
+\texttt{0002} & Extraction table & Table \texttt{extractions} liée à \texttt{documents} par clé étrangère \\
+\hline
+\texttt{0003} & NLP analysis & Table \texttt{nlp\_analyses} avec champs JSON pour clauses et entités \\
+\hline
+\end{tabular}
+\caption{Migrations Alembic de la Release 1}
+\label{tab:migrations_r1}
+\end{table}
+
+\subsection{Exécution automatique au démarrage}
+
+Les migrations sont exécutées automatiquement à chaque démarrage du backend via la fonction \texttt{run\_startup\_migrations()} appelée dans le gestionnaire d'événements \texttt{startup} de FastAPI. Cette approche garantit que le schéma de la base de données est toujours à jour, même après une mise à jour de l'application.
+
+\section{Diagrammes de classes de la Release 1}
+
+\subsection{Diagramme de classes — Agent 1 : Extraction documentaire}
+
+La figure~\ref{fig:class_agent1} présente le diagramme de classes de l'Agent 1. L'architecture repose sur le \textbf{pattern Provider} : la classe abstraite \texttt{DocumentExtractorProvider} définit l'interface commune, et chaque format de fichier est géré par une implémentation concrète indépendante. Le \texttt{ProviderRegistry} joue le rôle de fabrique, retournant le bon provider en fonction du type MIME. La classe \texttt{Normalizer} traite le texte brut produit par n'importe quel provider de façon uniforme. Les entités \texttt{Document} et \texttt{Extraction} correspondent aux tables PostgreSQL persistant les résultats.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/class_agent1.png}
+    \caption{Diagramme de classes — Agent 1 : Extraction documentaire}
+    \label{fig:class_agent1}
+\end{figure}
+
+\subsection{Diagramme de classes — Agent 2 : Analyse NLP}
+
+La figure~\ref{fig:class_agent2} présente le diagramme de classes de l'Agent 2. Le pipeline NLP est composé de quatre composants indépendants et testables : \texttt{LanguageDetector}, \texttt{ClauseSegmenter}, \texttt{EntityExtractor} et \texttt{ClauseClassifier}. Chaque composant enrichit progressivement l'objet \texttt{ClauseSegment} : le segmenter le crée, l'extracteur d'entités y ajoute les \texttt{Entity} détectées, et le classifieur y attache les \texttt{labels} et \texttt{compliance\_flags}. L'ensemble des clauses enrichies est finalement persisté dans l'entité \texttt{NLPAnalysis}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/class_agent2.png}
+    \caption{Diagramme de classes — Agent 2 : Analyse NLP}
+    \label{fig:class_agent2}
+\end{figure}
+
+\section{Récapitulatif des endpoints REST de la Release 1}
+
+Le tableau~\ref{tab:api_r1} synthétise l'ensemble des endpoints REST exposés par la plateforme LexAI pour les fonctionnalités de la Release 1.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{1.5cm}|p{5.5cm}|p{7cm}|}
+\hline
+\textbf{Méthode} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST & \texttt{/documents/upload} & Téléverse un contrat et déclenche l'extraction \\
+\hline
+GET & \texttt{/documents} & Liste tous les documents avec leur statut \\
+\hline
+GET & \texttt{/documents/summary} & Compteurs par statut (queued, extracting, etc.) \\
+\hline
+GET & \texttt{/documents/\{id\}} & Détail d'un document (statut + progression) \\
+\hline
+GET & \texttt{/documents/\{id\}/extraction} & Résultats complets de l'extraction \\
+\hline
+POST & \texttt{/documents/\{id\}/retry} & Relance le traitement d'un document échoué \\
+\hline
+DELETE & \texttt{/documents/\{id\}} & Supprime un document et toutes ses données \\
+\hline
+GET & \texttt{/documents/\{id\}/analysis} & Résultats complets de l'analyse NLP \\
+\hline
+GET & \texttt{/documents/\{id\}/clauses} & Liste paginée des clauses segmentées \\
+\hline
+GET & \texttt{/documents/\{id\}/clauses/\{cid\}} & Détail d'une clause avec entités \\
+\hline
+POST & \texttt{/documents/\{id\}/analyze} & Déclenche manuellement l'analyse NLP \\
+\hline
+GET & \texttt{/health} & Vérification de l'état du système \\
+\hline
+\end{tabular}
+\caption{Endpoints REST de la Release 1 (Agents 1 et 2)}
+\label{tab:api_r1}
+\end{table}
+
+\section{Tests et validation de la Release 1}
+
+\subsection{Stratégie de tests}
+
+La stratégie de validation de la Release 1 repose sur trois niveaux de tests :
+
+\begin{itemize}
+    \item \textbf{Tests unitaires :} Chaque composant (PdfProvider, DocxProvider, Normalizer, ClauseSegmenter, EntityExtractor, ClauseClassifier) est testé en isolation avec des fichiers de test représentatifs.
+    \item \textbf{Tests d'intégration :} Le pipeline complet (upload → extraction → NLP) est testé de bout en bout avec un contrat réel de test de 5 pages.
+    \item \textbf{Tests de robustesse :} Validation des cas limites (PDF scanné, fichier vide, encodage non UTF-8, fichier dépassant 50 Mo).
+\end{itemize}
+
+\subsection{Résultats de validation}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{5cm}|p{3cm}|p{3cm}|p{3cm}|}
+\hline
+\textbf{Scénario de test} & \textbf{Résultat attendu} & \textbf{Résultat obtenu} & \textbf{Statut} \\
+\hline
+Upload PDF 10 pages & Extraction réussie & Extraction en 3.2s & Réussi \\
+\hline
+Upload DOCX avec titres & Structure détectée & 4 sections identifiées & Réussi \\
+\hline
+Upload fichier trop grand & Erreur 413 & Erreur 413 retournée & Réussi \\
+\hline
+Upload MIME invalide & Erreur 415 & Erreur 415 retournée & Réussi \\
+\hline
+Segmentation 50 clauses & $\geq$ 45 clauses & 48 clauses détectées & Réussi \\
+\hline
+Classification zero-shot & Labels cohérents & Micro-F1 $\approx$ 0.62 & Acceptable \\
+\hline
+NER entités juridiques & PARTY + DURATION & 3 entités sur 4 & Partiel \\
+\hline
+Pipeline complet & status=analyzed & status=analyzed en 28s & Réussi \\
+\hline
+\end{tabular}
+\caption{Résultats de validation de la Release 1}
+\label{tab:tests_r1}
+\end{table}
+
+\section{Conclusion}
+
+Dans ce chapitre, nous avons présenté la première release de la plateforme LexAI, couvrant le Sprint 1 (Agent 1 — extraction documentaire) et le Sprint 2 (Agent 2 — analyse NLP). Nous avons mis en place le pipeline d'ingestion complet prenant en charge cinq formats de fichiers, la tâche Celery asynchrone avec suivi de progression, et le pipeline NLP segmentant les contrats en clauses classifiées avec entités juridiques extraites. Les tests de validation confirment le bon fonctionnement du pipeline sur des cas réels, avec une précision de classification acceptable en mode zero-shot. Le chapitre suivant décrit la deuxième release, consacrée à l'évaluation de conformité réglementaire (Agent 3) et à la génération de recommandations de mise en conformité (Agent 4).
