@@ -1,0 +1,619 @@
+\setcounter{chapter}{4}
+\setcounter{section}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+
+\thispagestyle{empty}
+\begin{center}
+    \vspace*{\fill}
+    {\fontsize{40pt}{48pt}\selectfont \textcolor{black}{\textsc{Chapitre 4}}}\\[2em]
+    {\fontsize{22pt}{26pt}\selectfont \textbf{Release 2 : Évaluation de conformité et Recommandations}}
+    \vspace*{\fill}
+\end{center}
+\clearpage
+
+\addcontentsline{toc}{chapter}{Chapitre 4 : Release 2 : Évaluation de conformité et Recommandations}
+\fancyhead[LO,LE]{\textbf{Chapitre 4 : Release 2 : Évaluation de conformité et Recommandations}}
+
+\section{Introduction}
+
+Ce chapitre présente la deuxième release de la plateforme LexAI, composée de deux sprints. Le \textbf{Sprint 3} couvre l'Agent 3, le moteur d'évaluation de conformité réglementaire qui analyse les clauses de l'Agent 2 et produit un score de conformité. Le \textbf{Sprint 4} couvre l'Agent 4, le moteur de génération de recommandations qui produit pour chaque violation une clause de remplacement rédigée. À l'issue de cette release, le pipeline complet est opérationnel, du téléversement d'un contrat jusqu'à l'export d'une version révisée conforme aux référentiels légaux.
+
+\section{Planification des sprints de la Release 2}
+
+La Release 2 est planifiée en deux sprints successifs de deux semaines chacun.
+Le Sprint 3 porte sur le moteur d'évaluation de conformité réglementaire (Agent 3),
+et le Sprint 4 sur la génération de recommandations de mise en conformité (Agent 4).
+
+% ======================================================
+\section{Sprint 3 : Agent 3 — Moteur d'évaluation de conformité}
+% ======================================================
+
+\subsection{Backlog du Sprint 3}
+
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{2.8cm}|>{\RaggedRight\arraybackslash}p{4.2cm}|>{\centering\arraybackslash}p{1.6cm}|>{\centering\arraybackslash}p{1.6cm}|>{\RaggedRight\arraybackslash}p{4.6cm}|}
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Nom} & \textbf{Description} & \textbf{Priorité} & \textbf{Estimation} & \textbf{Tâches de développement} \\
+\hline
+\endfirsthead
+\hline
+\rowcolor[HTML]{D6E4F0}
+\textbf{Nom} & \textbf{Description} & \textbf{Priorité} & \textbf{Estimation} & \textbf{Tâches de développement} \\
+\hline
+\endhead
+\hline
+\endfoot
+\caption{Backlog du Sprint 3 — Agent 3}
+\label{tab:sprint3_agent3}
+\endlastfoot
+
+\rowcolor[HTML]{EBF5FB}
+Bibliothèque de règles juridiques &
+En tant que juriste, je veux que les règles LNPDP, RGPD, ISO 27001 et ISO 9001 soient encodées en JSON et applicables automatiquement. &
+Critique & 3 jours &
+15 règles LNPDP ; 12 règles RGPD ; 12 règles ISO 27001 ; 5 règles ISO 9001 ; Checklist clauses obligatoires \\
+\hline
+
+Moteur de correspondance &
+En tant que système, je veux faire correspondre les règles aux clauses selon leurs labels et flags. &
+Critique & 2 jours &
+Chargement JSON des règles ; Détermination frameworks actifs ; Correspondance flag spécifique ; Déclenchement unique par doc \\
+\hline
+
+\rowcolor[HTML]{EBF5FB}
+Moteur de scoring &
+En tant que responsable conformité, je veux obtenir un score de conformité pondéré par référentiel et un score global. &
+Critique & 2 jours &
+Formule de déduction par sévérité ; Pondération LNPDP/RGPD/ISO ; Niveau de risque juridique ; Scores par framework \\
+\hline
+
+Détection clauses manquantes &
+En tant que responsable conformité, je veux savoir quelles clauses obligatoires sont absentes du contrat. &
+Haute & 1 jour &
+Inférence type de contrat ; Vérification par label et mots-clés \\
+\hline
+
+\rowcolor[HTML]{EBF5FB}
+Tâche Celery + API &
+En tant qu'utilisateur, je veux déclencher l'évaluation et consulter les résultats via l'API. &
+Haute & 1 jour &
+Tâche \texttt{run\_evaluation} ; Chaînage après NLP ; Endpoints GET /evaluation \\
+\hline
+
+Interface EvaluationViewer &
+En tant que responsable conformité, je veux visualiser le score, le risque et les violations. &
+Haute & 1 jour &
+Jauge circulaire SVG ; Barres par framework ; Cartes de violations triées \\
+\hline
+
+\end{longtable}
+
+\subsection{Analyse des besoins du Sprint 3}
+
+\paragraph{Besoins fonctionnels}
+\begin{itemize}
+    \item Déterminer automatiquement les référentiels applicables à un contrat donné (LNPDP toujours actif ; RGPD si flags \textit{gdpr\_relevant} ou \textit{unlawful\_cross\_border\_transfer} ; ISO 27001 si données personnelles ; ISO 9001 si contrat de service).
+    \item Appliquer les 44 règles encodées en JSON contre les clauses annotées par l'Agent 2.
+    \item Calculer un score de conformité par référentiel selon la formule : \[ \text{score}(F) = \max\left(0,\ 100 - \sum_{v \in F} w(\text{sévérité}(v))\right) \] avec $w(\text{critique})=30$, $w(\text{élevée})=20$, $w(\text{moyenne})=10$, $w(\text{faible})=5$.
+    \item Calculer un score global pondéré : LNPDP (45\%), RGPD (30\%), ISO 27001 (15\%), ISO 9001 (10\%).
+    \item Convertir le score global en niveau de risque juridique : critique ($< 40$), élevé ($< 60$), moyen ($< 80$), faible ($\geq 80$).
+    \item Identifier les clauses obligatoires manquantes selon le type de contrat détecté.
+\end{itemize}
+
+\paragraph{Besoins non fonctionnels}
+\begin{itemize}
+    \item \textbf{Maintenabilité :} Les règles sont stockées dans des fichiers JSON modifiables sans recompilation du code Python.
+    \item \textbf{Idempotence :} L'évaluation peut être re-déclenchée après mise à jour des règles ; elle écrase le résultat précédent.
+    \item \textbf{Auditabilité :} Chaque violation est tracée avec son identifiant de règle, son article de loi, sa clause source et son indice de remédiation.
+\end{itemize}
+
+\subsubsection{Diagramme de cas d'utilisation du Sprint 3}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{images/uc_sprint3.png}
+    \caption{Diagramme de cas d'utilisation du Sprint 3}
+    \label{fig:uc_sprint3}
+\end{figure}
+
+\subsubsection{Description du cas d'utilisation : « Évaluer la conformité réglementaire »}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|p{3.5cm}|p{11cm}|}
+\hline
+\textbf{Cas d'utilisation} & \textbf{Évaluer la conformité réglementaire} \\
+\hline
+Acteur & Système (déclenchement automatique après analyse NLP) \\
+\hline
+Pré-condition & Le document est au statut \texttt{analyzed} et les clauses annotées sont disponibles \\
+\hline
+Post-condition & Le score de conformité, les violations et les clauses manquantes sont persistés ; le document passe à \texttt{evaluated} \\
+\hline
+Description du scénario principal &
+1- La tâche Celery \texttt{run\_evaluation} est déclenchée automatiquement après l'analyse NLP\newline
+2- Le \texttt{RuleEngine} charge les 44 règles depuis les fichiers JSON\newline
+3- Les frameworks actifs sont déterminés selon les flags des clauses\newline
+4- Pour chaque règle, le moteur recherche une clause correspondante\newline
+5- Les violations sont collectées avec leur sévérité, framework et article\newline
+6- Les clauses obligatoires manquantes sont identifiées\newline
+7- Le \texttt{ComplianceScorer} calcule les scores par framework et le score global\newline
+8- Le niveau de risque juridique est déterminé\newline
+9- Les résultats sont persistés dans la table \texttt{evaluations}\newline
+10- Le statut du document passe à \texttt{evaluated} \\
+\hline
+Exception &
+- Aucune clause annotée : score de conformité minimal, toutes les clauses obligatoires signalées manquantes\newline
+- Règle invalide en JSON : ignorée avec avertissement dans les logs \\
+\hline
+\end{tabular}
+\caption{Description textuelle du cas « Évaluer la conformité réglementaire »}
+\label{tab:uc_evaluation}
+\end{table}
+
+\subsubsection{Diagramme de séquence « Évaluer la conformité réglementaire »}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/seq_sprint3.png}
+    \caption{Diagramme de séquence : Évaluer la conformité réglementaire}
+    \label{fig:seq_evaluation}
+\end{figure}
+
+\subsection{Conception du Sprint 3}
+
+\subsubsection{Structure des règles juridiques JSON}
+
+Chaque règle est définie par les champs suivants :
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{8cm}|}
+\hline
+\textbf{Champ} & \textbf{Type} & \textbf{Description} \\
+\hline
+rule\_id & String & Identifiant unique de la règle (ex. : \texttt{lnpdp\_art23\_retention}) \\
+article & String & Article de loi de référence (ex. : \texttt{Art. 23}) \\
+framework & String & Référentiel applicable (LNPDP / GDPR / ISO27001 / ISO9001) \\
+title & String & Titre court de la règle \\
+description & String & Description de l'obligation vérifiée \\
+trigger\_flags & Array & Flags de conformité déclencheurs (ex. : \texttt{missing\_retention\_period}) \\
+trigger\_labels & Array & Labels de clause déclencheurs (ex. : \texttt{data\_processing}) \\
+severity & String & Sévérité : critical, high, medium, low \\
+mandatory & Boolean & Indique si la clause est obligatoire (déclenche la checklist) \\
+remediation\_hint & String & Indice de remédiation affiché dans l'interface \\
+\hline
+\end{tabular}
+\caption{Structure d'une règle juridique JSON}
+\label{tab:rule_structure}
+\end{table}
+
+\subsubsection{Dictionnaire des données du Sprint 3}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{2.5cm}|p{4cm}|p{2.2cm}|p{3.2cm}|p{4.5cm}|}
+\hline
+\textbf{Table} & \textbf{Attribut} & \textbf{Type} & \textbf{Contraintes} & \textbf{Description} \\
+\hline
+evaluations & id & SERIAL & PK & Identifiant unique de l'évaluation \\
+ & document\_id & INTEGER & FK $\rightarrow$ documents, UNIQUE & Document évalué \\
+ & global\_score & FLOAT & NOT NULL & Score global de conformité (0--100) \\
+ & litigation\_risk & VARCHAR(16) & NOT NULL & Risque : low / medium / high / critical \\
+ & lnpdp\_score & FLOAT & NULLABLE & Score LNPDP (0--100) \\
+ & gdpr\_score & FLOAT & NULLABLE & Score RGPD (0--100) \\
+ & iso27001\_score & FLOAT & NULLABLE & Score ISO 27001 (0--100) \\
+ & iso9001\_score & FLOAT & NULLABLE & Score ISO 9001 (0--100) \\
+ & violations\_json & TEXT & NOT NULL & Violations détectées (JSON) \\
+ & missing\_clauses\_json & TEXT & NOT NULL & Clauses manquantes (JSON) \\
+ & active\_frameworks\_json & TEXT & NOT NULL & Frameworks actifs (JSON) \\
+ & violation\_counts\_json & TEXT & NOT NULL & Compteurs par framework \\
+ & evaluated\_at & TIMESTAMP & NOT NULL & Date de l'évaluation \\
+\hline
+\end{tabular}}
+\caption{Dictionnaire des données du Sprint 3}
+\label{tab:dict_sprint3}
+\end{table}
+
+\subsection{Réalisation du Sprint 3}
+
+\subsubsection{Interface de visualisation de l'évaluation de conformité}
+
+Le composant \texttt{EvaluationViewer} présente au responsable conformité : une jauge circulaire SVG affichant le score global (coloré selon le niveau de risque), des barres de score par référentiel, une rangée de statistiques (violations, clauses manquantes, frameworks actifs), un nuage de tags pour les clauses obligatoires manquantes et des cartes de violations triées par sévérité (critique en premier), chacune affichant le framework, l'article de loi, la description de la violation et l'indice de remédiation.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/agent3.png}
+    \caption{Interface de visualisation de l'évaluation de conformité}
+    \label{fig:evaluation_viewer}
+\end{figure}
+
+% ======================================================
+\section{Sprint 4 : Agent 4 — Génération de recommandations}
+% ======================================================
+
+\subsection{Backlog du Sprint 4}
+
+\begin{table}[!htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{3cm}|p{5.5cm}|p{1.2cm}|p{5.5cm}|}
+\hline
+\textbf{Nom} & \textbf{Description (User Story)} & \textbf{Estimation} & \textbf{Tâches de développement} \\
+\hline
+
+Bibliothèque de templates &
+En tant que juriste, je veux que les recommandations s'appuient sur des templates juridiques validés couvrant les violations les plus fréquentes. &
+3j &
+\begin{itemize}[leftmargin=*]
+\item 10 templates LNPDP
+\item 8 templates RGPD
+\item 4 templates ISO 27001
+\item 2 templates ISO 9001
+\end{itemize} \\
+\hline
+
+Slot-filling depuis NLP &
+En tant que juriste, je veux que les clauses réécrites intègrent les valeurs réelles extraites par l'Agent 2. &
+2j &
+\begin{itemize}[leftmargin=*]
+\item Lookup entités par label
+\item Résolution \{RETENTION\_PERIOD\}
+\item Résolution \{PARTY\}/\{ROLE\}
+\item Fallback valeur par défaut
+\end{itemize} \\
+\hline
+
+Fallback générique &
+En tant que système, je veux produire une recommandation minimale pour toute violation sans template. &
+1j &
+\begin{itemize}[leftmargin=*]
+\item Fonction \_fallback\_recommendation
+\item Champ generated\_by tracé en base
+\end{itemize} \\
+\hline
+
+Tâche Celery + API &
+En tant qu'utilisateur, je veux déclencher la génération et consulter les recommandations via l'API. &
+1j &
+\begin{itemize}[leftmargin=*]
+\item Tâche \texttt{run\_recommendation}
+\item Chaînage après évaluation
+\item GET /recommendations
+\item POST /recommend
+\end{itemize} \\
+\hline
+
+Interface RecommendationViewer &
+En tant que juriste, je veux visualiser et accepter/rejeter les recommandations, et exporter le contrat révisé. &
+3j &
+\begin{itemize}[leftmargin=*]
+\item Composant \texttt{RecommendationViewer}
+\item Panneau accept/reject
+\item Export DOCX et PDF
+\end{itemize} \\
+\hline
+
+\end{tabular}%
+}
+\caption{Backlog du Sprint 4 — Agent 4}
+\label{tab:sprint4_agent4}
+\end{table}
+
+\subsection{Analyse des besoins du Sprint 4}
+
+\paragraph{Besoins fonctionnels}
+\begin{itemize}
+    \item Pour chaque violation identifiée par l'Agent 3, produire automatiquement une recommandation comprenant : une description du problème (\textit{issue\_description}), une recommandation concrète (\textit{recommendation\_text}), une clause de remplacement rédigée en français (\textit{rewritten\_clause}) et une justification juridique citant l'article applicable (\textit{legal\_rationale}).
+    \item Injecter dynamiquement dans les clauses réécrites les valeurs extraites par l'Agent 2 (durée, parties, rôles) via le mécanisme de slot-filling.
+    \item Trier les recommandations par priorité décroissante (critique → élevé → moyen → faible).
+    \item Permettre au juriste d'accepter ou rejeter chaque recommandation, et d'exporter le contrat révisé au format DOCX ou PDF.
+    \item Tracer dans la base de données si la recommandation provient d'un template (\texttt{template\_v1}) ou du fallback générique (\texttt{fallback\_v1}).
+\end{itemize}
+
+\paragraph{Besoins non fonctionnels}
+\begin{itemize}
+    \item \textbf{Idempotence :} La re-génération efface les recommandations précédentes avant d'en créer de nouvelles.
+    \item \textbf{Extensibilité :} L'architecture permet d'intégrer un LLM (API Groq ou Ollama/Mistral) pour enrichir les templates sans modifier la structure des données.
+    \item \textbf{Traçabilité :} Le champ \texttt{generated\_by} permet de distinguer les recommandations issues des templates validés de celles du fallback générique.
+\end{itemize}
+
+\subsubsection{Diagramme de cas d'utilisation du Sprint 4}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{images/uc_sprint4.png}
+    \caption{Diagramme de cas d'utilisation du Sprint 4}
+    \label{fig:uc_sprint4}
+\end{figure}
+
+\subsubsection{Description du cas d'utilisation : « Générer des recommandations »}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|p{3.5cm}|p{11cm}|}
+\hline
+\textbf{Cas d'utilisation} & \textbf{Générer des recommandations de mise en conformité} \\
+\hline
+Acteur & Système (déclenchement automatique après évaluation) \\
+\hline
+Pré-condition & Le document est au statut \texttt{evaluated} et les violations sont disponibles \\
+\hline
+Post-condition & Une recommandation par violation est persistée ; le document passe à \texttt{complete} \\
+\hline
+Description du scénario principal &
+1- La tâche Celery est déclenchée automatiquement après l'évaluation\newline
+2- Les violations sont triées par sévérité décroissante\newline
+3- Pour chaque violation, le \texttt{Recommender} recherche un template par \texttt{rule\_id}\newline
+4- Si un template est trouvé : les slots \{VARIABLE\} sont résolus depuis les entités NLP de la clause source\newline
+5- Si aucun template : le fallback générique est appliqué\newline
+6- Chaque recommandation est persistée dans la table \texttt{recommendations}\newline
+7- Le document passe au statut \texttt{complete} avec \texttt{finished\_at} renseigné \\
+\hline
+Exception &
+- Violation sans clause source : les slots sont remplacés par leurs valeurs par défaut\newline
+- Entité NLP non trouvée dans la clause : la valeur par défaut du slot est utilisée \\
+\hline
+\end{tabular}
+\caption{Description textuelle du cas « Générer des recommandations »}
+\label{tab:uc_recommendations}
+\end{table}
+
+\subsubsection{Diagramme de séquence « Générer des recommandations »}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/seq_sprint4.png}
+    \caption{Diagramme de séquence : Générer des recommandations}
+    \label{fig:seq_recommendations}
+\end{figure}
+
+\subsection{Conception du Sprint 4}
+
+\subsubsection{Structure d'un template de recommandation}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{8.5cm}|}
+\hline
+\textbf{Champ} & \textbf{Type} & \textbf{Description} \\
+\hline
+rule\_id & String & Identifiant de la règle Agent 3 correspondante \\
+framework & String & Référentiel (LNPDP / GDPR / ISO27001 / ISO9001) \\
+article & String & Article de loi de référence \\
+issue\_description & String & Description du problème identifié \\
+recommendation\_text & String & Recommandation concrète de correction \\
+rewritten\_clause & String & Clause de remplacement rédigée (avec slots \{VARIABLE\}) \\
+legal\_rationale & String & Justification juridique citant l'article exact \\
+slots & Object & Dictionnaire \{NOM\_SLOT: \{entity\_label, default\}\} pour le slot-filling \\
+\hline
+\end{tabular}
+\caption{Structure d'un template de recommandation}
+\label{tab:template_structure}
+\end{table}
+
+\subsubsection{Dictionnaire des données du Sprint 4}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{2.8cm}|p{3.8cm}|p{2.5cm}|p{2.8cm}|p{4.5cm}|}
+\hline
+\textbf{Table} & \textbf{Attribut} & \textbf{Type} & \textbf{Contraintes} & \textbf{Description} \\
+\hline
+recommendations & id & SERIAL & PK & Identifiant unique \\
+ & document\_id & INTEGER & FK $\rightarrow$ documents & Document parent \\
+ & violation\_id & VARCHAR(50) & NOT NULL & ID de la violation (Agent 3) \\
+ & clause\_id & VARCHAR(50) & NOT NULL & ID de la clause (Agent 2) \\
+ & violation\_rule\_id & VARCHAR(100) & NOT NULL & \texttt{rule\_id} déclencheur \\
+ & framework & VARCHAR(20) & NOT NULL & LNPDP / GDPR / ISO27001… \\
+ & article & VARCHAR(50) & NOT NULL & Référence légale exacte \\
+ & severity & VARCHAR(16) & NOT NULL & critical / high / medium / low \\
+ & priority & INTEGER & NOT NULL & Ordre d'affichage \\
+ & issue\_description & TEXT & NOT NULL & Description du problème \\
+ & recommendation\_text & TEXT & NOT NULL & Recommandation concrète \\
+ & rewritten\_clause & TEXT & NOT NULL & Clause de remplacement \\
+ & legal\_rationale & TEXT & NOT NULL & Justification juridique \\
+ & generated\_by & VARCHAR(32) & NOT NULL & \texttt{template\_v1} / \texttt{fallback\_v1} \\
+ & created\_at & TIMESTAMP & NOT NULL & Date de génération \\
+\hline
+rewrites & id & SERIAL & PK & Identifiant unique \\
+ & document\_id & INTEGER & FK $\rightarrow$ documents & Document parent \\
+ & recommendation\_id & INTEGER & FK $\rightarrow$ recommendations & Recommandation liée \\
+ & decision & VARCHAR(16) & NOT NULL & accepted / rejected / pending \\
+ & revised\_text & TEXT & NULLABLE & Texte révisé final \\
+ & decided\_at & TIMESTAMP & NULLABLE & Date de décision \\
+\hline
+\end{tabular}}
+\caption{Dictionnaire des données du Sprint 4}
+\label{tab:dict_sprint4}
+\end{table}
+
+\subsection{Réalisation du Sprint 4}
+
+\subsubsection{Interface de visualisation des recommandations}
+
+Le composant \texttt{RecommendationViewer} présente les recommandations triées par sévérité décroissante. Chaque recommandation est affichée sur une carte indiquant le framework et l'article de loi, la description du problème, la recommandation concrète, la clause de remplacement rédigée et la justification juridique. Le juriste peut accepter ou rejeter chaque recommandation individuellement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/agent4 recommnadation .png}
+    \caption{Interface de visualisation des recommandations}
+    \label{fig:recommendation_viewer}
+\end{figure}
+
+\subsubsection{Interface d'export du contrat révisé}
+
+Le panneau \texttt{RewriteReviewPanel} permet au juriste de visualiser le contrat avec les clauses révisées mises en évidence, d'accepter ou rejeter chaque modification, puis d'exporter le document final en DOCX ou PDF.
+
+
+\section{Diagrammes de classes de la Release 2}
+
+\subsection{Diagramme de classes — Agent 3 : Évaluation de conformité}
+
+La figure~\ref{fig:class_agent3} présente le diagramme de classes de l'Agent 3. Le \texttt{RuleEngine} charge les quatre fichiers JSON de règles au démarrage et orchestre l'évaluation : il détermine les frameworks actifs selon les flags des clauses, fait correspondre chaque règle aux clauses candidates et produit une liste de \texttt{Violation}. Le \texttt{ComplianceScorer} applique ensuite la formule pondérée pour produire un \texttt{ScoreResult}. L'ensemble est persisté dans l'entité \texttt{Evaluation}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/class_agent3.png}
+    \caption{Diagramme de classes — Agent 3 : Évaluation de conformité}
+    \label{fig:class_agent3}
+\end{figure}
+
+\subsection{Diagramme de classes — Agent 4 : Génération de recommandations}
+
+La figure~\ref{fig:class_agent4} présente le diagramme de classes de l'Agent 4. Le \texttt{Recommender} charge la bibliothèque de \texttt{Template} au démarrage et produit une \texttt{Recommendation} par violation. Le mécanisme de slot-filling résout dynamiquement les variables \texttt{\{SLOT\}} en interrogeant les entités NLP de la clause source. Le \texttt{RewriteEngine} assemble ensuite le contrat révisé à partir des \texttt{Rewrite} acceptés par le juriste et l'exporte en DOCX ou PDF.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/class_agent4.png}
+    \caption{Diagramme de classes — Agent 4 : Génération de recommandations}
+    \label{fig:class_agent4}
+\end{figure}
+
+\section{Intégration LLM — Enrichissement par l'API Groq}
+
+\subsection{Architecture de l'enrichissement LLM}
+
+En complément des 24 templates statiques de l'Agent 4, la plateforme LexAI intègre un mécanisme d'enrichissement optionnel par un Grand Modèle de Langage (LLM) via l'API Groq. Ce module permet de contextualiser les clauses réécrites en tenant compte du secteur d'activité, du type de contrat et des spécificités des parties contractantes.
+
+L'intégration repose sur le module \texttt{backend/app/services/llm/groq\_client.py}, qui expose une interface simple d'appel à l'API Groq (compatible OpenAI) :
+
+\begin{itemize}
+    \item \textbf{Modèle utilisé :} \texttt{llama3-8b-8192} ou \texttt{mixtral-8x7b-32768} selon la complexité de la violation.
+    \item \textbf{Format de sortie :} JSON structuré avec les champs \texttt{rewritten\_clause} et \texttt{explanation}.
+    \item \textbf{Fallback :} Si l'API Groq est indisponible ou si la clé API n'est pas configurée, le système revient automatiquement au template statique V1.
+    \item \textbf{Traçabilité :} Le champ \texttt{generated\_by} en base distingue \texttt{template\_v1}, \texttt{fallback\_v1} et \texttt{llm\_groq}.
+\end{itemize}
+
+\subsection{Prompt template pour la génération LLM}
+
+Le prompt utilisé pour la génération LLM est structuré en français afin de maximiser la qualité de la sortie pour les contrats en droit tunisien :
+
+\begin{itemize}
+    \item \textbf{Rôle système :} Expert juridique spécialisé en droit tunisien (LNPDP) et RGPD.
+    \item \textbf{Contexte :} Clause originale, violation identifiée, référence légale applicable.
+    \item \textbf{Consigne :} Réécrire la clause pour la rendre conforme, en français juridique, en conservant l'intention contractuelle originale.
+    \item \textbf{Format de réponse :} JSON avec \texttt{CLAUSE\_REVISEE} et \texttt{EXPLICATION}.
+\end{itemize}
+
+\subsection{Configuration}
+
+L'enrichissement LLM est activé via la variable d'environnement \texttt{LLM\_ENABLED=true} dans le fichier \texttt{.env}. La clé API Groq est fournie via \texttt{LLM\_API\_KEY}. En mode \texttt{LLM\_ENABLED=false} (défaut), la plateforme fonctionne entièrement sans connexion externe.
+
+\section{Gestion des migrations de base de données — Release 2}
+
+La Release 2 étend le schéma de la base de données avec deux nouvelles tables et des mises à jour des constantes de statut du document.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{3cm}|p{4cm}|p{7cm}|}
+\hline
+\textbf{Version} & \textbf{Nom} & \textbf{Tables créées / modifiées} \\
+\hline
+\texttt{0004} & Evaluation table & Table \texttt{evaluations} avec scores par framework, violations JSON et clauses manquantes JSON \\
+\hline
+\texttt{0005} & Recommendation table & Table \texttt{recommendations} avec champs de contenu, priorité et provenance \\
+\hline
+\texttt{0006} & Rewrite table & Table \texttt{rewrites} pour les décisions accept/reject et l'export du contrat révisé \\
+\hline
+\end{tabular}
+\caption{Migrations Alembic de la Release 2}
+\label{tab:migrations_r2}
+\end{table}
+
+Les migrations \texttt{0004}, \texttt{0005} et \texttt{0006} forment une chaîne : chaque migration déclare la précédente comme dépendance, garantissant l'ordre correct d'exécution. Alembic vérifie la version courante de la base de données à chaque démarrage et n'applique que les migrations manquantes, rendant la mise à jour idempotente et sans perte de données.
+
+\section{Récapitulatif des endpoints REST de la Release 2}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{1.5cm}|p{5.5cm}|p{7cm}|}
+\hline
+\textbf{Méthode} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+GET & \texttt{/documents/\{id\}/evaluation} & Évaluation complète avec violations \\
+\hline
+GET & \texttt{/documents/\{id\}/evaluation/summary} & Scores uniquement (sans texte des violations) \\
+\hline
+POST & \texttt{/documents/\{id\}/evaluate} & Déclenche manuellement la re-évaluation \\
+\hline
+GET & \texttt{/documents/\{id\}/recommendations} & Toutes les recommandations triées par priorité \\
+\hline
+POST & \texttt{/documents/\{id\}/recommend} & Déclenche ou re-déclenche la génération \\
+\hline
+GET & \texttt{/documents/\{id\}/rewrites} & État des décisions accept/reject par clause \\
+\hline
+POST & \texttt{/documents/\{id\}/rewrites} & Enregistre une décision accept/reject \\
+\hline
+GET & \texttt{/documents/\{id\}/export/docx} & Exporte le contrat révisé en DOCX \\
+\hline
+GET & \texttt{/documents/\{id\}/export/pdf} & Exporte le contrat révisé en PDF \\
+\hline
+\end{tabular}
+\caption{Endpoints REST de la Release 2 (Agents 3 et 4)}
+\label{tab:api_r2}
+\end{table}
+
+\section{Tests et validation de la Release 2}
+
+\subsection{Stratégie de tests}
+
+La validation de la Release 2 s'appuie sur :
+\begin{itemize}
+    \item \textbf{Tests du moteur de règles :} Vérification que chaque règle JSON se déclenche correctement sur des clauses synthétiques construites pour contenir les flags et labels cibles.
+    \item \textbf{Tests de scoring :} Vérification de la formule de déduction et des pondérations par framework sur des ensembles de violations contrôlés.
+    \item \textbf{Tests de slot-filling :} Vérification que les entités NLP sont correctement injectées dans les templates et que le fallback s'applique lorsque l'entité est absente.
+    \item \textbf{Tests de pipeline end-to-end :} Un contrat de traitement de données de 15 pages est soumis au pipeline complet (Agents 1 → 2 → 3 → 4) et le résultat final est vérifié manuellement.
+\end{itemize}
+
+\subsection{Résultats de validation}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{5cm}|p{3cm}|p{3cm}|p{3cm}|}
+\hline
+\textbf{Scénario de test} & \textbf{Résultat attendu} & \textbf{Résultat obtenu} & \textbf{Statut} \\
+\hline
+Règle LNPDP Art.23 & Violation détectée & Violation détectée & Réussi \\
+\hline
+Règle GDPR Art.28 & Violation critique & Violation critique & Réussi \\
+\hline
+Score sans violations & 100/100 & 100/100 & Réussi \\
+\hline
+Score 2 violations high & 60/100 (LNPDP) & 60/100 & Réussi \\
+\hline
+Template slot-filling & DURATION injectée & "3 ans" injecté & Réussi \\
+\hline
+Fallback sans template & Recommandation générique & Générée & Réussi \\
+\hline
+Export DOCX & Fichier valide & Fichier .docx valide & Réussi \\
+\hline
+Pipeline complet 4 agents & status=complete & status=complete en 45s & Réussi \\
+\hline
+\end{tabular}
+\caption{Résultats de validation de la Release 2}
+\label{tab:tests_r2}
+\end{table}
+
+\section{Conclusion}
+
+Dans ce chapitre, nous avons présenté la deuxième release de la plateforme LexAI, couvrant le Sprint 3 (Agent 3 — évaluation de conformité réglementaire avec 44 règles et scoring pondéré) et le Sprint 4 (Agent 4 — génération de recommandations avec 24 templates et slot-filling depuis les entités NLP). Nous avons également décrit l'intégration optionnelle de l'API Groq pour l'enrichissement LLM des recommandations. Les tests de validation confirment le bon fonctionnement du pipeline complet, du téléversement à l'export du contrat révisé. À l'issue de cette release, la plateforme LexAI est pleinement opérationnelle et prête pour une mise en production.

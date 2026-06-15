@@ -1,0 +1,326 @@
+\documentclass[12pt,a4paper,twoside]{report}
+
+% ==================================================
+% Encodage et langue
+% ==================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% ==================================================
+% Police et géométrie
+% ==================================================
+
+\usepackage{lmodern}
+\usepackage{setspace}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\usepackage[
+    top=2.5cm,
+    bottom=2.5cm,
+    left=2.5cm,
+    right=2.5cm
+]{geometry}
+
+% ==================================================
+% Graphiques et figures
+% ==================================================
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{pdflscape}
+\usepackage{pdfpages}
+
+% ==================================================
+% Tableaux
+% ==================================================
+
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage[table]{xcolor}
+\usepackage{colortbl}
+\usepackage{booktabs}
+
+% ==================================================
+% Mathématiques
+% ==================================================
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ==================================================
+% Mise en page et styles
+% ==================================================
+
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{indentfirst}
+\usepackage{pifont}
+\usepackage{varioref}
+\usepackage[hyphens]{url}
+
+% ==================================================
+% Hyperliens
+% ==================================================
+
+\usepackage[
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue
+]{hyperref}
+
+% ==================================================
+% Gestion des headers/footers
+% ==================================================
+
+\usepackage{fancyhdr}
+
+\setlength{\headheight}{15pt}
+
+% Réduction des problèmes Overfull/Underfull
+\emergencystretch=3em
+\hfuzz=5pt
+\vbadness=10000
+\hbadness=10000
+
+% ==================================================
+% Numérotation figures/tableaux
+% ==================================================
+
+\usepackage{chngcntr}
+
+\counterwithout{figure}{chapter}
+\counterwithout{table}{chapter}
+\counterwithin{section}{chapter}
+
+% ==================================================
+% Espacements
+% ==================================================
+
+\renewcommand{\arraystretch}{1.3}
+
+\setlength{\floatsep}{5pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{5pt plus 2pt minus 2pt}
+\setlength{\intextsep}{5pt plus 2pt minus 2pt}
+
+% ==================================================
+% Style headers/footers
+% ==================================================
+
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyfoot[C]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+
+\pagestyle{fancy}
+
+\fancyhf{}
+
+\fancyhead[LE]{\nouppercase{\leftmark}}
+\fancyhead[RO]{\nouppercase{\rightmark}}
+
+\fancyfoot[C]{\thepage}
+
+\renewcommand{\headrulewidth}{0.5pt}
+
+% ==================================================
+% Style des titres
+% ==================================================
+
+\titleformat{\chapter}[display]
+{\normalfont\Huge\bfseries\centering}
+{\chaptername\ \thechapter}
+{20pt}
+{\Huge}
+
+\titlespacing*{\chapter}
+{0pt}
+{0pt}
+{20pt}
+
+% ----------------------------
+
+\titleformat{\section}
+{\normalfont\Large\bfseries}
+{\thesection}
+{1em}
+{}
+
+% ----------------------------
+
+\titleformat{\subsection}
+{\normalfont\large\bfseries}
+{\thesubsection}
+{1em}
+{}
+
+% ----------------------------
+
+\titleformat{\subsubsection}
+{\normalfont\normalsize\bfseries}
+{\thesubsubsection}
+{1em}
+{}
+
+% ==================================================
+% Numérotation sections
+% ==================================================
+
+\renewcommand{\thesection}{\thechapter.\arabic{section}}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
+% Suppress blank pages inserted by \cleardoublepage (twoside mode)
+\let\cleardoublepage\clearpage
+
+% Prevent LaTeX from stretching content vertically to fill pages (avoids large gaps)
+\raggedbottom
+
+% ==================================================
+% Début document
+% ==================================================
+
+\begin{document}
+
+% ==================================================
+% Page de garde
+% ==================================================
+
+\pagestyle{empty}
+
+\begin{titlepage}
+\begin{center}
+
+\vspace*{0.5cm}
+
+{\large \textbf{République Tunisienne}}\\[0.3em]
+{\large \textbf{Ministère de l'Enseignement Supérieur et de la Recherche Scientifique}}\\[0.8em]
+
+\textbf{Université de Monastir}\\[0.2em]
+\textbf{Faculté des Sciences de Monastir}\\[1.5em]
+
+\rule{\linewidth}{0.5pt}\\[1em]
+
+{\Large \textbf{Projet de Fin d'Études}}\\[0.5em]
+{\normalsize Pour l'obtention du diplôme de Licence / Master en Informatique}\\[1.2em]
+
+\rule{\linewidth}{0.5pt}\\[1.2em]
+
+{\LARGE \textbf{LexAI}}\\[0.5em]
+{\large \textbf{Plateforme IA d'Analyse Automatisée}}\\[0.3em]
+{\large \textbf{de la Conformité des Contrats Juridiques}}\\[1.8em]
+
+% e-Tafakna logo
+\includegraphics[width=5cm]{images/etafakna-logo}\\[1.5em]
+
+\begin{tabular}{ll}
+\textbf{Réalisé par :} & \textbf{Ala Missaoui} \\[0.5em]
+\textbf{Entreprise d'accueil :} & \textbf{e-Tafakna} \\[0.5em]
+\textbf{Encadrant académique :} & \textbf{Badreddine Guizani} \\[0.5em]
+\textbf{Encadrante professionnelle :} & \textbf{Dhekra Ben Mahmoud} \\
+\end{tabular}
+
+\vfill
+
+{\normalsize Année Universitaire 2025 -- 2026}
+
+\end{center}
+\end{titlepage}
+
+% ==================================================
+% Pages préliminaires
+% ==================================================
+
+% ==================================================
+% Table des matières
+% ==================================================
+
+\tableofcontents
+\clearpage
+
+\listoftables
+\clearpage
+
+\listoffigures
+\clearpage
+
+\include{Abbreviations}
+
+% ==================================================
+% Début pagination
+% ==================================================
+
+\clearpage
+
+\pagenumbering{arabic}
+
+\pagestyle{fancy}
+
+\setstretch{1.6}
+
+% ==================================================
+% Introduction Générale
+% ==================================================
+
+\chapter*{Introduction Générale}
+\markboth{Introduction Générale}{}
+\addcontentsline{toc}{chapter}{Introduction Générale}
+
+\vspace{1em}
+
+À l'ère de la transformation numérique, le domaine juridique connaît une mutation profonde portée par l'essor de l'intelligence artificielle. Les professionnels du droit, les responsables de conformité et les PME tunisiennes consacrent encore aujourd'hui une part considérable de leur temps à l'examen manuel des contrats, tâche longue, coûteuse et sujette aux erreurs humaines. La complexité croissante des obligations légales — notamment la Loi Organique n°2004-63 sur la Protection des Données à Caractère Personnel (LNPDP), le Règlement Général sur la Protection des Données (RGPD), le Code des Obligations et Contrats tunisien (COC) ainsi que les normes ISO 27001 et ISO 9001 — aggrave encore ce problème en multipliant les cadres réglementaires à surveiller simultanément.
+
+\vspace{1em}
+
+C'est dans ce contexte que s'inscrit le projet \textbf{LexAI — Plateforme IA d'Analyse Juridique de Contrats}, réalisé par \textbf{Ala Missaoui} dans le cadre d'un projet de fin d'études à la Faculté des Sciences de Monastir, en collaboration avec l'entreprise \textbf{ETAFAKNA}. LexAI est une plateforme intelligente qui automatise l'analyse de conformité des contrats juridiques en s'appuyant sur un pipeline de quatre agents spécialisés orchestrés par LangGraph. Elle permet à ses utilisateurs de téléverser un contrat, d'en extraire et normaliser le texte, d'analyser automatiquement ses clauses par traitement du langage naturel, d'évaluer sa conformité aux référentiels légaux applicables et de générer des recommandations de mise en conformité sous forme de clauses révisées.
+
+\vspace{1em}
+
+La plateforme répond à un besoin réel et urgent dans le contexte tunisien : les entreprises et cabinets juridiques ne disposent pas d'outils adaptés à la législation nationale. Les solutions internationales existantes ne couvrent ni le droit tunisien ni la langue française dans une dimension contractuelle juridique. LexAI comble ce vide en intégrant les articles clés de la LNPDP, du RGPD, de l'ISO 27001, de l'ISO 9001 et du COC directement dans son moteur de règles.
+
+\vspace{1em}
+
+Ce rapport est structuré en cinq chapitres. Le \textbf{premier chapitre} présente le contexte général du projet, l'analyse de l'existant, la problématique et la méthodologie Scrum adoptée. Le \textbf{deuxième chapitre} détaille l'analyse des besoins, les acteurs, l'architecture globale et l'environnement technologique. Le \textbf{troisième chapitre} décrit la première release du projet, couvrant l'Agent 1 (extraction documentaire) et l'Agent 2 (analyse NLP). Le \textbf{quatrième chapitre} présente la deuxième release avec l'Agent 3 (évaluation de conformité) et l'Agent 4 (génération de recommandations). Le \textbf{cinquième chapitre} décrit la troisième release dédiée au déploiement Cloud, à la conteneurisation Docker et à la mise en place du pipeline CI/CD avec GitHub Actions. Une \textbf{conclusion générale} synthétise les résultats obtenus et trace les perspectives d'évolution future de la plateforme LexAI.
+
+% ==================================================
+% Chapitres
+% ==================================================
+
+\include{Chapter1}
+\include{Chapter2}
+\include{Chapter3}
+\include{Chapter4}
+\include{Chapter5}
+
+% ==================================================
+% Conclusion
+% ==================================================
+
+\include{Conclusion}
+
+% ==================================================
+% Bibliographie
+% ==================================================
+
+\nocite{*}
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+% ==================================================
+% Fin document
+% ==================================================
+
+\end{document}
